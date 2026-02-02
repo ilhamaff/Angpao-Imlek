@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Imlek - Gosok Angpao</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .imlek-bg { background: linear-gradient(to bottom, #b91c1c, #7f1d1d); }
+        .gold-border { border: 4px solid #facc15; }
+        
+        #scratch-container {
+            position: relative;
+            width: 250px;
+            height: 350px;
+            margin: 0 auto;
+            user-select: none;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            cursor: crosshair;
+            border-radius: 12px;
+        }
+
+        .reward-box {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: white;
+            z-index: 1;
+            border-radius: 12px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* Tambahkan ini di dalam tag <style> */
+        #claim-btn {
+        position: relative; /* Wajib agar z-index jalan */
+        z-index: 10;      /* Pastikan di atas canvas */
+        cursor: pointer;
+        }
+    </style>
+</head>
+<body class="imlek-bg min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="voucher-section" class="text-center">
+        <h1 class="text-4xl font-bold text-yellow-400 mb-6 uppercase">🧧 Keberuntungan Imlek 🧧</h1>
+        <div class="bg-red-800 p-8 rounded-2xl gold-border shadow-2xl w-80">
+            <input type="text" id="voucherInput" placeholder="KODE VOUCHER" 
+                class="w-full p-3 rounded-lg text-center font-bold mb-4 uppercase focus:ring-4 focus:ring-yellow-500 outline-none">
+            <button onclick="validateVoucher()" class="bg-yellow-500 hover:bg-yellow-400 text-red-900 font-black py-3 px-6 rounded-full w-full shadow-lg transition-transform active:scale-95">
+                BUKA ANGPAO
+            </button>
+        </div>
+    </div>
+
+    <div id="game-section" class="hidden text-center">
+        <h2 class="text-2xl font-bold text-yellow-300 mb-4">GOSOK KARTUNYA!</h2>
+        <div id="scratch-container">
+            <div class="reward-box">
+                <img src="https://cdn-icons-png.flaticon.com/512/2272/2272841.png" width="80" class="mb-2">
+                <p class="text-gray-600 text-sm">Selamat!</p>
+                <h3 id="reward-name" class="text-xl font-bold text-red-600">ANGPAO RP 50.000</h3>
+                <button onclick="finishGame()" id="claim-btn" class="mt-4 bg-green-600 text-white px-6 py-2 rounded-full font-bold hidden">AMBIL</button>
+            </div>
+            <canvas id="scratch-canvas" width="250" height="350"></canvas>
+        </div>
+    </div>
+
+    <script>
+    let currentVoucher = ""; 
+    const canvas = document.getElementById('scratch-canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let isDrawing = false;
+
+    async function validateVoucher() {
+        const input = document.getElementById('voucherInput').value.trim().toUpperCase();
+        if (!input) return alert("Masukkan kode!");
+
+        try {
+            // Menggunakan 127.0.0.1 agar konsisten
+            const response = await fetch('http://127.0.0.1:3000/api/validate', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: input })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                currentVoucher = input;
+                document.getElementById('reward-name').innerText = data.reward;
+                document.getElementById('voucher-section').classList.add('hidden');
+                document.getElementById('game-section').classList.remove('hidden');
+                
+                // PENTING: Jalankan fungsi inisialisasi gosok
+                initScratch();
+            } else {
+                alert(data.message);
+            }
+        } catch (error) {
+            console.error("Error Detail:", error);
+            alert("Terjadi kesalahan koneksi ke server!");
+        }
+    }
+
+    // FUNGSI GOSOK (WAJIB ADA)
+    function initScratch() {
+        ctx.fillStyle = '#dc2626'; // Warna merah penutup
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#facc15';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('GOSOK DI SINI', canvas.width/2, canvas.height/2);
+
+        canvas.addEventListener('mousedown', () => isDrawing = true);
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mousemove', scratch);
+        
+        canvas.addEventListener('touchstart', () => isDrawing = true);
+        canvas.addEventListener('touchend', () => isDrawing = false);
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            scratch(e.touches[0]);
+        });
+    }
+
+    function scratch(e) {
+        if (!isDrawing) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX || e.pageX) - rect.left;
+        const y = (e.clientY || e.pageY) - rect.top;
+
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, 25, 0, Math.PI * 2);
+        ctx.fill();
+        
+        checkProgress();
+    }
+
+    function checkProgress() {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let clearPixels = 0;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            if (imageData.data[i + 3] === 0) clearPixels++;
+        }
+        if (clearPixels > (imageData.data.length / 4) * 0.4) {
+            document.getElementById('claim-btn').classList.remove('hidden');
+        }
+    }
+    async function finishGame() {
+        console.log("Mencoba klaim voucher:", currentVoucher); // Debugging
+            try {
+                const response = await fetch('http://127.0.0.1:3000/api/claim', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: currentVoucher })
+        });
+
+            const data = await response.json();
+                if (data.success) {
+                    alert("🧧 Selamat! Hadiah berhasil diklaim dan voucher telah digunakan.");
+                    location.reload(); // Segarkan halaman agar user tidak bisa gosok ulang kode yang sama
+                } else {
+                    alert("Gagal memperbarui status voucher: " + data.message);
+                }
+            } catch (error) {
+                console.error("Error saat klaim:", error);
+                alert("Terjadi kesalahan koneksi saat mengambil hadiah.");
+        }
+    }
+    function checkProgress() {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let clearPixels = 0;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            if (imageData.data[i + 3] === 0) clearPixels++;
+    }
+
+        if (clearPixels > (imageData.data.length / 4) * 0.4) {
+            document.getElementById('claim-btn').classList.remove('hidden');
+            // TAMBAHKAN INI: Agar canvas tidak menghalangi klik ke tombol
+            canvas.style.pointerEvents = 'none'; 
+            // OPTIONAL: Menghilangkan canvas sepenuhnya agar bersih
+            canvas.style.opacity = '0';
+            canvas.style.transition = 'opacity 0.5s';
+        }
+    }
+    </script>
+</body>
+</html>

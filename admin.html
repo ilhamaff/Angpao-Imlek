@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Event Imlek</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+    /* Gunakan CSS biasa agar tidak error di editor/browser */
+    .status-ready { 
+        background-color: #fef9c3; 
+        color: #a16207; 
+    }
+    .status-used { 
+        background-color: #dcfce7; 
+        color: #15803d; 
+    }
+</style>
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-red-700 mb-6">🧧 Dashboard Admin</h1>
+
+        <div class="bg-white p-6 rounded-xl shadow-md mb-8 border-t-4 border-blue-500">
+            <h2 class="text-lg font-bold mb-4 text-gray-700">Tambah Voucher Baru</h2>
+            <div class="flex flex-wrap gap-4">
+                <input type="text" id="newVoucherCode" placeholder="Contoh: CNY-2024" 
+                    class="border p-2 rounded flex-1 uppercase font-bold">
+                
+                <select id="rewardSelect" class="border p-2 rounded flex-1">
+                    <option value="1">Angpao Rp 10.000</option>
+                    <option value="2">Angpao Rp 50.000</option>
+                    <option value="3">Angpao Rp 100.000</option>
+                </select>
+
+                <button onclick="addVoucher()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">
+                    SIMPAN
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="px-6 py-4">Kode Voucher</th>
+                        <th class="px-6 py-4">Hadiah</th>
+                        <th class="px-6 py-4">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Fungsi Tambah Voucher
+        async function addVoucher() {
+            const code = document.getElementById('newVoucherCode').value;
+            const rewardId = document.getElementById('rewardSelect').value;
+
+            if (!code) return alert("Masukkan kode voucher!");
+
+            try {
+                const response = await fetch('http://127.0.0.1:3000/api/admin/add-voucher', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code, reward_id: rewardId })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert(data.message);
+                    document.getElementById('newVoucherCode').value = ''; // Reset input
+                    loadData(); // Segarkan tabel
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert("Gagal koneksi ke server");
+            }
+        }
+
+        // Fungsi loadData() tetap seperti sebelumnya...
+        async function loadData() {
+            // ... (Gunakan kode loadData yang sudah kamu punya)
+        }
+        window.onload = loadData;
+    </script>
+</body>
+
+    <script>
+        async function loadData() {
+            const tableBody = document.getElementById('admin-table-body');
+            
+            try {
+                // Menggunakan IP 127.0.0.1 sesuai hasil tes sukses di browser kamu
+                const response = await fetch('http://127.0.0.1:3000/api/admin/vouchers');
+                
+                if (!response.ok) throw new Error("Gagal mengambil data");
+                
+                const data = await response.json();
+                
+                tableBody.innerHTML = ''; // Bersihkan loading state
+
+                if (data.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="3" class="px-6 py-10 text-center">Belum ada data voucher.</td></tr>';
+                    return;
+                }
+
+                data.forEach(v => {
+                    const statusClass = v.status === 'USED' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-yellow-100 text-yellow-700';
+
+                    const row = `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 font-mono font-bold text-red-600">${v.code}</td>
+                            <td class="px-6 py-4 text-gray-700 font-medium">${v.reward_name}</td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 rounded-full text-xs font-black uppercase ${statusClass}">
+                                    ${v.status}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error(error);
+                tableBody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-red-500 font-bold">Terjadi kesalahan: ${error.message}</td></tr>`;
+            }
+        }
+
+        // Jalankan saat halaman pertama kali dibuka
+        window.onload = loadData;
+    </script>
+</body>
+</html>
